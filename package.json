@@ -1,0 +1,19 @@
+{
+  "name": "webgljet",
+  "version": "1.0.0",
+  "description": "Arduino IoT controller for webGL interface.",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.17.1",
+    "rbush": "^3.0.1",
+    "serialport": "^8.0.7",
+    "socket.io": "^2.3.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./server.mjs"
+  },
+  "author": "Stephen Duke",
+  "license": "ISC"
+}
