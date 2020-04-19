@@ -111,63 +111,7 @@ const musicHelper = (function () {
 /**
  * Loader Helper
  */
-const LoaderHelper = {
-    _base: 'https://raw.githubusercontent.com/rainner/codepen-assets/master/',
-    _data: {},
-    _loaded: 0,
-    _cb: null,
 
-    // get loaded resource by name  
-    get(name) {
-        return this._data[name] || null;
-    },
-
-    // complete handler 
-    onReady(cb) {
-        this._cb = cb;
-    },
-
-    // common error handler 
-    onError(err) {
-        console.error(err.message || err);
-    },
-
-    // when a resource is loaded 
-    onData(name, data) {
-        this._loaded += 1;
-        this._data[name] = data;
-        let total = Object.keys(this._data).length;
-        let loaded = (total && this._loaded === total);
-        let hascb = (typeof this._cb === 'function');
-        if (loaded && hascb) this._cb(total);
-    },
-
-    // custom .obj file 
-    loadGeometry(name, file) {
-        if (!name || !file) return;
-        this._data[name] = new THREE.Object3D();
-        const path = this._base + '/' + file;
-        const loader = new THREE.OBJLoader();
-        loader.load(path, data => { this.onData(name, data) }, null, this.onError);
-    },
-
-    loadLocalGeometry(name, file) {
-        if (!name || !file) return;
-        this._data[name] = new THREE.Object3D();
-        const path = '/' + file;
-        const loader = new THREE.OBJLoader();
-        loader.load(path, data => { this.onData(name, data) }, null, this.onError);
-    },
-
-    // load image file 
-    loadTexture(name, file, local) {
-        if (!name || !file) return;
-        this._data[name] = new THREE.Texture();
-        const path = local ? "" : this._base + '/' + file;
-        const loader = new THREE.TextureLoader();
-        loader.load(path, data => { this.onData(name, data) }, null, this.onError);
-    },
-};
 
 
 /**
@@ -787,7 +731,7 @@ const explosionParticles = {
         this.particleSystem.geometry.__dirtyVertices = true;
         this.particleSystem.geometry.verticesNeedUpdate = true;
         console.log(isFinished);
-        if(isFinished){
+        if (isFinished) {
             this.init();
         }
     }
@@ -803,7 +747,8 @@ const particles = {
         map: new THREE.TextureLoader().load(
             "./assets/particle.png"
         ),
-        transparent: true
+        transparent: false,
+        alphaTest: 0.5
     }),
     particlesSystem: null,
 
@@ -1011,6 +956,8 @@ const setupScene = () => {
         explosionParticles.update(enemyGunShip.group);
         // render scene 
         renderer.render(scene, camera);
+        camera.position.z--;
+        console.log(mouse);
     };
 
     loop();
