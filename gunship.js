@@ -1,23 +1,26 @@
 /**
  * Common options
  */
-let startMusic = true;   // auto start music (firefox only)
 let cycleColor = false;  // cycle colors 
 let commonHue = 0.438;  // initial color 
 let commonColor = new THREE.Color();
 commonColor.setHSL(commonHue, .8, .5);
-var wand = {};
+var wand = null;
+var position = { x: 0, y: 0 }
+var timeAtLastShot = 0;
+
+//TODO: Setup Socket
 const socket = io();
 socket.emit('new player');
-//Triggers when we recieve a new hit from the server
-socket.on('wand', function (wand_from_server) {
-    wand = wand_from_server;
+
+socket.on('wand', function (newWand) {
+    wand = {};
+    wand = newWand;
 });
+
 /**
  * Device screen info helper 
  */
-
-
 const deviceInfo = (function () {
     const _w = window;
     const _s = window.screen;
@@ -55,63 +58,58 @@ const deviceInfo = (function () {
     };
 })();
 
-
-/**
- * Music player helper 
- */
-const musicHelper = (function () {
-    let wrap = document.querySelector('#player');
-    // let button = wrap ? wrap.querySelector('button') : null;
-    let audio = new Audio('http://ice1.somafm.com/u80s-256-mp3');
-    let step = 0.01;
-    let active = false;
-    let sto = null;
-
-    let fadeIn = () => {
-        audio.volume += 0.01;
-        if (audio.volume >= 0.2) { audio.volume = 0.2; return; }
-        sto = setTimeout(fadeIn, 100);
-    };
-
-    let fadeOut = () => {
-        audio.volume -= 0.02;
-        if (audio.volume <= 0.01) { audio.volume = 0; audio.pause(); return; }
-        sto = setTimeout(fadeOut, 100);
-    };
-
-    let play = () => {
-        if (sto) clearTimeout(sto);
-        active = true;
-        // button.textContent = 'Stop music';
-        audio.play();
-        fadeIn();
-    };
-
-    let stop = () => {
-        if (sto) clearTimeout(sto);
-        active = false;
-        // button.textContent = 'Play music';
-        fadeOut();
-    };
-
-    // button.addEventListener('click', e => {
-    //     e.stopPropagation();
-    //     e.preventDefault();
-    //     if (active) { stop(); }
-    //     else { play(); }
-    // });
-
-    audio.preload = 'auto';
-    audio.muted = false;
-    audio.volume = 0;
-    return { play, stop };
-})();
-
-
 /**
  * Loader Helper
  */
+const LoaderHelper = {
+    _base: './',
+    _data: {},
+    _loaded: 0,
+    _cb: null,
 
+    // get loaded resource by name  
+    get(name) {
+        return this._data[name] || null;
+    },
+
+    // complete handler 
+    onReady(cb) {
+        this._cb = cb;
+    },
+
+    // common error handler 
+    onError(err) {
+        console.error(err.message || err);
+    },
+
+    // when a resource is loaded 
+    onData(name, data) {
+        this._loaded += 1;
+        this._data[name] = data;
+        let total = Object.keys(this._data).length;
+        let loaded = (total && this._loaded === total);
+        let hascb = (typeof this._cb === 'function');
+        if (loaded && hascb) this._cb(total);
+    },
+
+    // custom .obj file 
+    loadGeometry(name, file) {
+        if (!name || !file) return;
+        this._data[name] = new THREE.Object3D();
+        const path = this._base + '/' + file;
+        const loader = new THREE.OBJLoader();
+        loader.load(path, data => { this.onData(name, data) }, null, this.onError);
+    },
+
+    // load image file 
+    loadTexture(name, file) {
+        if (!name || !file) return;
+        this._data[name] = new THREE.Texture();
+        const path = this._base + '/' + file;
+        const loader = new THREE.TextureLoader();
+        loader.load(path, data => { this.onData(name, data) }, null, this.onError);
+    },
+};
 
 
 /**
@@ -896,19 +894,11 @@ const setupScene = () => {
         gunShip.onClick(e);
     });
 
-    // autostart music 
-    const isff = (typeof InstallTrigger !== 'undefined');
-    if (startMusic && isff) musicHelper.play();
-    var position = {
-        x: 0,
-        y: 0
-    }
-
-    var timeAtLastShot = 0;
-
     // animation loop 
     const loop = () => {
         requestAnimationFrame(loop);
+
+        //Check if bullets hit the enemy ship.
         for (let i in gunShip.shots) {
             let s = gunShip.shots[i].position;
             if (Math.abs(s.x - enemyGunShip.group.position.x) < 5 &&
@@ -917,25 +907,21 @@ const setupScene = () => {
                 explosionParticles.hit = true;
             }
         }
-        // console.log(gunShip.shots)
-        // 
-        if (wand.y && wand.x) {
+
+        //TODO: Get wand position
+        if (wand) {
             if (position.x + wand.y > -deviceInfo.screenCenterX() && position.x + wand.y < deviceInfo.screenCenterX()) {
                 position.x += Math.floor(wand.y / 2);
             }
             if (position.y + wand.x > -deviceInfo.screenCenterY() && position.y + wand.x < deviceInfo.screenCenterY()) {
                 position.y += Math.floor(wand.x / 2);
             }
-            if (!wand.b1 && Date.now() - timeAtLastShot > 200) {
+            if(!wand.b1){
                 gunShip.onClick();
                 timeAtLastShot = Date.now();
             }
-        } else {
-            position = mouse;
-        }
+        } else position = mouse;
 
-        if (wand.x) mouse.y = Math.floor(wand.x);
-        // position.x += wand.x/20;
         // add random shooting stars 
         if (Math.random() > 0.99) shootingStar.create(scene);
 
@@ -956,8 +942,6 @@ const setupScene = () => {
         explosionParticles.update(enemyGunShip.group);
         // render scene 
         renderer.render(scene, camera);
-        camera.position.z--;
-        console.log(mouse);
     };
 
     loop();
@@ -965,8 +949,8 @@ const setupScene = () => {
 
 // init 
 LoaderHelper.onReady(setupScene);
-LoaderHelper.loadTexture('starTexture', 'images/star.png');
-LoaderHelper.loadTexture('mountainTexture', 'images/terrain2.jpg');
-LoaderHelper.loadTexture('engineTexture', 'images/water.jpg');
-LoaderHelper.loadGeometry('shipGeometry', 'models/SpaceFighter03/SpaceFighter03.obj');
-LoaderHelper.loadLocalGeometry('blueShipGeometry', './assets/blue_ship.obj'); 
+LoaderHelper.loadTexture('starTexture', 'assets/particle2.png');
+LoaderHelper.loadTexture('mountainTexture', 'assets/terrain2.jpg');
+LoaderHelper.loadTexture('engineTexture', 'assets/water.jpg');
+LoaderHelper.loadGeometry('shipGeometry', 'assets/blue_ship.obj');
+LoaderHelper.loadGeometry('blueShipGeometry', 'assets/blue_ship.obj'); 
